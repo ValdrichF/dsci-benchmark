@@ -73,7 +73,7 @@ keying = function(.dt, n, pred = FALSE, namecol = names(.dt)){
     }
 }
 
-# Clean the preprocessed data
+# Clean the ngrams data
 cleanPreprocess = function(.dt, n, threshold = 1){
     .dt = .dt[, .(count = sum(count)), ngram]
     namecol = c("V5ngram_1", "V4ngram_1", "V3ngram_1", "V2ngram_1", "V1ngram_1", "prediction")
@@ -86,11 +86,11 @@ cleanPreprocess = function(.dt, n, threshold = 1){
     keying(.dt, n, TRUE)
     # Count is the number of n grams (known+prediction words)
     .dt = .dt[, .(count = sum(count)), by = key(.dt)]
-    .dt = na.omit(.dt)
     keying(.dt, n, FALSE)
     # i.count is the number of n-1 grams (known words)
-    .dt = .dt[, ":="(NumOfRows=.N, i.count = sum(count)), key(.dt)][count>threshold]
-    .dt = .dt[, score := (count)/(i.count)*0.4^(5-n)]
+    .dt = .dt[, i.count := sum(count), key(.dt)]
+    .dt = .dt[ count>threshold, score := (count)/(i.count)*0.4^(5-n)]
+    .dt = na.omit(.dt)
     colName = c(key(.dt), "score")
     .dt = setorderv(.dt, colName, c(rep(1,n-1), -1))[, indx:=seq_len(.N), key(.dt)][indx<=5]
     .dt = .dt[, c("indx", "NumOfRows", "i.count", "count"):=NULL]
