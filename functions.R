@@ -17,23 +17,28 @@ getObjSize = function(obj, unit. = "auto"){
 
 # Function to pre-process the documents and return a token list
 preProcess = function(documents){
-    # convert paragraphs/documents into sentences
+    # convert paragraphs/documents into vector of sentences
     toks = str_split(documents, "(?<=[[:punct:]])\\s(?=[A-Z])")%>%
         unlist()%>%
-        # remove all uncerscores
-        str_remove_all("_+")%>%
+        # remove all underscores
+        remUnderscore()%>%
         tolower()%>%
-        str_remove_all("[:punct:]|\\d")
+        # remove URLs
+        str_replace_all("((http)|(www))\\S+\\b", " ")%>%
+        # remove email addresses
+        str_replace_all("\\S+@\\S+\\.\\S+\\b", " ")%>%
+        str_replace_all("[:punct:]|\\d", " ")%>%
+        str_squish()
     # sentences to word tokens
     toks = tokenize_fastestword(toks)
     # add a start and end of sentence token & remove urls
     toks = lapply(toks, function(x){
-        x = str_subset(x, "(^(http)|(www))|(.com)", TRUE)
         append("<s>", append(x, "</s>"))
     })
     # convert list to tokens
     as.tokens(toks)
 }
+
 
 # Function to create ngrams from tokens and find their counts
 createNgrams = function(toks, n=2L, ...){
@@ -93,7 +98,7 @@ cleanPreprocess = function(.dt, n, threshold = 1){
     .dt = na.omit(.dt)
     colName = c(key(.dt), "score")
     .dt = setorderv(.dt, colName, c(rep(1,n-1), -1))[, indx:=seq_len(.N), key(.dt)][indx<=5]
-    .dt = .dt[, c("indx", "NumOfRows", "i.count", "count"):=NULL]
+    .dt = .dt[, c("indx", "i.count", "count"):=NULL]
     # .dt = .dt[, prediction := charLevels[prediction]]
     .dt[,prediction := str_replace(prediction, "<.s>", "\\.")]
 }
@@ -105,16 +110,22 @@ cleanPreprocess = function(.dt, n, threshold = 1){
 preProcessPredict =  compiler::cmpfun(function(documents, knownChars = wordindx){
     nlength = 4
     # convert paragraphs/documents into vector of sentences
-    tok = str_replace_all(documents, "(?<=[!\\.?])\\s(?=[A-Z])", " </s> <s> ")%>%
+    res1 = str_split(documents, "(?<=[[:punct:]])\\s(?=[A-Z])")%>%
+        unlist()%>%
+        # remove all underscores
+        remUnderscore()%>%
         tolower()%>%
-        # Remove punctuations and numbers
-        str_remove_all("[:punct:](?!s)|\\d")
-    tok  = paste("<s>", tok)
+        # remove URLs
+        str_replace_all("((http)|(www))\\S+\\b", " ")%>%
+        # remove email addresses
+        str_replace_all("\\S+@\\S+\\.\\S+\\b", " ")%>%
+        str_replace_all("[:punct:]|\\d", " ")%>%
+        str_squish()
+    res1  = paste("<s>", res1, "</s>")
     # sentences to list of word tokens
-    tok = tokenize_fastestword(tok)%>%
+    res1 = tokenize_fastestword(res1)%>%
         unlist
-    # remove URLs and emails
-    res1 = str_subset(tok[tok!=""], "(^(http)|(www))|(\\.com)", TRUE)
+    res1 = res1[-length(res1)]
     # subset the last 4 words (pad NA before if needed)
     res1 = tail(append(c(NA, NA, NA, NA, NA), res1), nlength)
     # Identify the known/unknown words
