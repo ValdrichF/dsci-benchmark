@@ -65,13 +65,15 @@ for (f in files){
       fwrite(gram5[,.(count = sum(count)), ngram], "./ngram/gram5.csv", append = T)
       j = 1L
       rm(gram2, gram3, gram4, gram5, grams)
-      a = gc()
+      invisible(gc())
       gram2 = list()
       gram3 = list()
       gram4 = list()
       gram5 = list()
     }
   }
+  rm(dat)
+  invisible(gc())
 }
 stopCluster(cl)
 
