@@ -14,5 +14,5 @@ for(f in files){
   dat = cleanPreprocess(dat[count>1], n = n, 2)
   fwrite(dat, paste0("./model/", basename(f)))
   rm(dat, n)
-  a = gc()
+  invisible(gc())
 }
