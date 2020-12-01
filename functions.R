@@ -17,24 +17,21 @@ getObjSize = function(obj, unit. = "auto"){
 
 # Function to pre-process the documents and return a token list
 preProcess = function(documents){
-    # convert paragraphs/documents into vector of sentences
-    toks = str_split(documents, "(?<=[[:punct:]])\\s(?=[A-Z])")%>%
-        unlist()%>%
-        # remove all underscores
-        remUnderscore()%>%
-        tolower()%>%
+    toks = documents%>%
         # remove URLs
         str_replace_all("((http)|(www))\\S+\\b", " ")%>%
         # remove email addresses
         str_replace_all("\\S+@\\S+\\.\\S+\\b", " ")%>%
+        # convert paragraphs/documents into vector of sentences
+        str_split("(?<!\\w\\.\\w.)(?<![A-Z]\\.)(?<![A-Z][a-z]\\.)(?<=\\.|\\?)\\s")%>%
+        unlist()%>%
+        tolower()%>%
         str_replace_all("[:punct:]|\\d", " ")%>%
         str_squish()
+    # add a start and end of sentence token
+    toks  = paste("<s>", toks, "</s>")
     # sentences to word tokens
     toks = tokenize_fastestword(toks)
-    # add a start and end of sentence token & remove urls
-    toks = lapply(toks, function(x){
-        append("<s>", append(x, "</s>"))
-    })
     # convert list to tokens
     as.tokens(toks)
 }
@@ -46,7 +43,6 @@ createNgrams = function(toks, n=2L, ...){
     toksNgrams = tokens_ngrams(toks, n, ...)
     # convert into character vector to use data.table functions
     b = data.table(ngram = unlist(toksNgrams, use.names = FALSE))
-    b = b[, ngram := remUnderscore(ngram)]
     # Find the count of every unique ngram
     b = b[, count := as.double(.N), by = ngram]
     b
@@ -79,28 +75,27 @@ keying = function(.dt, n, pred = FALSE, namecol = names(.dt)){
 }
 
 # Clean the ngrams data
-cleanPreprocess = function(.dt, n, threshold = 1){
-    .dt = .dt[, .(count = sum(count)), ngram]
+cleanPreprocess = function(nGram, n, threshold = 1){
     namecol = c("V5ngram_1", "V4ngram_1", "V3ngram_1", "V2ngram_1", "V1ngram_1", "prediction")
     # Split the ngram into character matrix
-    .dt = .dt[, tail(namecol, n) := tstrsplit(ngram, split = "_")]
-    setcolorder(.dt, c(tail(namecol, n) ,"count"))
+    dt = nGram[, tail(namecol, n) := tstrsplit(ngram, split = "_")]
+    setcolorder(dt, c(tail(namecol, n) ,"count"))
     # # Encode the char matrix into integer matrix and make a list with each column of the matrix
     # ngramsplit = lapply(1:n, function(i) as.integer(factor(ngramsplit[,i], charLevels)))
-    .dt = .dt[, ngram:=NULL]
-    keying(.dt, n, TRUE)
+    dt = dt[, ngram:=NULL]
+    keying(dt, n, TRUE)
     # Count is the number of n grams (known+prediction words)
-    .dt = .dt[, .(count = sum(count)), by = key(.dt)]
-    keying(.dt, n, FALSE)
+    dt = dt[, .(count = sum(count)), by = key(dt)]
+    keying(dt, n, FALSE)
     # i.count is the number of n-1 grams (known words)
-    .dt = .dt[, i.count := sum(count), key(.dt)]
-    .dt = .dt[ count>threshold, score := (count)/(i.count)*0.4^(5-n)]
-    .dt = na.omit(.dt)
-    colName = c(key(.dt), "score")
-    .dt = setorderv(.dt, colName, c(rep(1,n-1), -1))[, indx:=seq_len(.N), key(.dt)][indx<=5]
-    .dt = .dt[, c("indx", "i.count", "count"):=NULL]
+    dt = dt[, i.count := sum(count), key(dt)]
+    dt = dt[ count>threshold, score := (count)/(i.count)*0.4^(5-n)]
+    dt = na.omit(dt)
+    colName = c(key(dt), "score")
+    dt = setorderv(dt, colName, c(rep(1,n-1), -1))[, indx:=seq_len(.N), key(dt)][indx<=3]
+    dt = dt[, c("indx", "i.count", "count"):=NULL]
     # .dt = .dt[, prediction := charLevels[prediction]]
-    .dt[,prediction := str_replace(prediction, "<.s>", "\\.")]
+    dt[,prediction := str_replace(prediction, "<.s>", "\\.")]
 }
 
 # Create the predicting function
@@ -109,16 +104,15 @@ cleanPreprocess = function(.dt, n, threshold = 1){
 ### A sentence. Becomes c("<s>", "a", "sentence", "</s>", "<s>", "becomes")
 preProcessPredict =  compiler::cmpfun(function(documents, knownChars = wordindx){
     nlength = 4
-    # convert paragraphs/documents into vector of sentences
-    res1 = str_split(documents, "(?<=[[:punct:]])\\s(?=[A-Z])")%>%
-        unlist()%>%
-        # remove all underscores
-        remUnderscore()%>%
-        tolower()%>%
+    res1 = documents%>%
         # remove URLs
         str_replace_all("((http)|(www))\\S+\\b", " ")%>%
         # remove email addresses
         str_replace_all("\\S+@\\S+\\.\\S+\\b", " ")%>%
+        # convert paragraphs/documents into vector of sentences
+        str_split("(?<!\\w\\.\\w.)(?<![A-Z]\\.)(?<![A-Z][a-z]\\.)(?<=\\.|\\?)\\s")%>%
+        unlist()%>%
+        tolower()%>%
         str_replace_all("[:punct:]|\\d", " ")%>%
         str_squish()
     res1  = paste("<s>", res1, "</s>")
