@@ -1,0 +1,67 @@
+---
+title: "FinalPresentation"
+output: 
+  xaringan::moon_reader:
+    css: ["bootstrap.css"]
+---
+
+<style>
+.forceBreak { -webkit-column-break-after: always; break-after: column; }
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Introduction
+
+- Part of the [Data Science Specialization](https://www.coursera.org/specializations/jhu-data-science) offered by Johns Hopkins University on Coursera 
+
+- **Task:** Build a prediction application to suggest the next word in a sentence based on user input.
+
+- **How?** A model created in R was trained on over 7.1 million sentences comprising of tweets, blog posts and news articles (Table along side). The data was provided by the course instructor. The model is deployed on shiny app.
+
+<p class="forceBreak"></p>
+
+```{r, echo = FALSE, asis = TRUE}
+library(knitr)
+library(kableExtra)
+df = data.frame(Data = c("Tweets", "Blogs", "News"),
+                Sentences = c(3.16, 2.17, 1.78),
+                Words = c(29.61, 36.89, 33.59))
+
+kable(df, col.names = c("Dataset", "No. of Sentences (millions)", "No. of Words (millions)"), align = c("c", "r", "r"))%>%
+  kable_classic(full_width = F, html_font = "Cambria")
+
+```
+
+---
+## Method
+
+The data was pre-processed to remove numbers and punctuations (preserving contractions). Links and email addresses were also removed.
+
+A ["Stupid Backoff model"](https://www.aclweb.org/anthology/D07-1090.pdf) was trained on the data using ngrams containing 2 to 5 words.
+
+Only ngrams which are repeated more than once is considered while calculating the probability. However, only ngrams which appeared more than 3 times are suggested.
+
+R packages such as [quanteda](https://cran.r-project.org/web/packages/quanteda/vignettes/quickstart.html), [data.table](https://cran.r-project.org/web/packages/data.table/vignettes/datatable-intro.html) and [stringr](https://cran.r-project.org/web/packages/stringr/vignettes/stringr.html) were used to preprocess and perform the required calculations.
+
+---
+
+## Special features (Unknown words)
+
+* Space saving:
+
+  Only the top 3 predictions based on their score is saved in the look up table. This makes it so that the lower ngrams with a high score can be recommended more frequently while also reducing the size of the table.
+
+* **Model 1.** All words are known:
+
+  A straightforward Stupid Backoff Model is used. Knowing all the words allows the use of fast binary search based subset which can generate the result within 15ms. This is the case for over 80% of the data.
+
+* **Model 2.** At least one unknown word:
+
+  The unknown word(s) is ignored and the suggestion is made based on the remaining known words. While doing this, the position of the words are preserved. This is an attempt to incorporate the concept of context in the model. It takes about 465ms to generate a suggestion using this method.
+
+---
+
+## Application
